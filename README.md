@@ -11,6 +11,59 @@ It gives you deep insight into every agent run — spans, latency, token usage, 
 
 ---
 
+
+## How It Works
+
+```mermaid
+flowchart TD
+    A[🤖 Agent Run] --> B[ObservabilityContext]
+
+    B --> C[AgentTracer]
+    B --> D[AgentLogger]
+    B --> E[MetricsCollector]
+
+    C --> C1[start_span / end_span]
+    C --> C2[Trace + Span lifecycle]
+
+    D --> D1[LLM call records]
+    D --> D2[Structured JSON logs]
+
+    E --> E1[Latency tracking]
+    E --> E2[Token cost aggregation]
+    E --> E3[MetricPoint storage]
+
+    C1 & C2 & D1 & D2 & E1 & E2 & E3 --> F{TraceExporter}
+
+    F --> G[StdoutExporter]
+    F --> H[JSONFileExporter\n.jsonl / .json]
+
+    style A fill:#1e3a5f,color:#fff
+    style B fill:#2d2d2d,color:#fff
+    style F fill:#3d2d5f,color:#fff
+    style G fill:#1a3320,color:#fff
+    style H fill:#1a3320,color:#fff
+```
+
+```mermaid
+sequenceDiagram
+    participant Code
+    participant ObsContext as ObservabilityContext
+    participant Tracer as AgentTracer
+    participant Logger as AgentLogger
+    participant Metrics as MetricsCollector
+    participant Exporter
+
+    Code->>ObsContext: with ObservabilityContext(run_id) as obs
+    ObsContext->>Tracer: start_span("route", metadata)
+    Code->>Logger: log_llm_call(model, tokens, latency)
+    Code->>Metrics: record("latency_ms", 142)
+    ObsContext->>Tracer: end_span(tokens=450)
+    ObsContext->>Exporter: export(trace)
+    Exporter-->>Code: obs.summary() → latency, cost, steps
+```
+
+---
+
 ## Features
 
 | Component | What it does |
