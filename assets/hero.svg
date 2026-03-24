@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 300" width="800" height="300">
+  <defs>
+    <style>
+      .bg{fill:#0d1117}
+      .title{font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:700;fill:#e6edf3}
+      .subtitle{font-family:'JetBrains Mono',monospace;font-size:13px;fill:#8b949e}
+      .tag{font-family:monospace;font-size:9px;fill:#cc9933}
+      @keyframes fill1{from{width:0}to{width:160px}}
+      @keyframes fill2{from{width:0}to{width:80px}}
+      @keyframes fill3{from{width:0}to{width:200px}}
+      @keyframes fill4{from{width:0}to{width:60px}}
+      .s1{animation:fill1 1s ease-out forwards;fill:#1f6feb}
+      .s2{animation:fill2 1s ease-out 0.3s forwards;fill:#8957e5;width:0}
+      .s3{animation:fill3 1s ease-out 0.5s forwards;fill:#3fb950;width:0}
+      .s4{animation:fill4 1s ease-out 0.8s forwards;fill:#cc9933;width:0}
+      .track{fill:#161b22;stroke:#30363d;stroke-width:1}
+    </style>
+  </defs>
+  <rect width="800" height="300" class="bg"/>
+  <text x="40" y="50" class="title">agent-observability</text>
+  <text x="40" y="72" class="subtitle">Trace every LLM call. Measure every token. Export anywhere.</text>
+  <text x="40" y="90" class="tag">AgentTracer · AgentLogger · MetricsCollector · Exporters</text>
+
+  <!-- Timeline ruler -->
+  <line x1="160" y1="115" x2="760" y2="115" stroke="#30363d" stroke-width="1"/>
+  <text x="160" y="110" font-family="monospace" font-size="8" fill="#484f58">0ms</text>
+  <text x="360" y="110" font-family="monospace" font-size="8" fill="#484f58">200ms</text>
+  <text x="560" y="110" font-family="monospace" font-size="8" fill="#484f58">400ms</text>
+  <text x="720" y="110" font-family="monospace" font-size="8" fill="#484f58">560ms</text>
+
+  <!-- Span rows -->
+  <text x="155" y="137" font-family="monospace" font-size="9" fill="#58a6ff" text-anchor="end">route</text>
+  <rect x="160" y="124" width="300" height="18" rx="3" class="track"/>
+  <rect x="160" y="124" height="18" rx="3" class="s1"/>
+  <text x="248" y="137" font-family="monospace" font-size="8" fill="#e6edf3">herald → coder (142ms)</text>
+
+  <text x="155" y="167" font-family="monospace" font-size="9" fill="#d2a8ff" text-anchor="end">llm_call</text>
+  <rect x="160" y="154" width="300" height="18" rx="3" class="track"/>
+  <rect x="160" y="154" height="18" rx="3" class="s2"/>
+  <text x="208" y="167" font-family="monospace" font-size="8" fill="#e6edf3">claude-opus (78ms · 420 tok)</text>
+
+  <text x="155" y="197" font-family="monospace" font-size="9" fill="#3fb950" text-anchor="end">tool_call</text>
+  <rect x="160" y="184" width="300" height="18" rx="3" class="track"/>
+  <rect x="160" y="184" height="18" rx="3" class="s3"/>
+  <text x="268" y="197" font-family="monospace" font-size="8" fill="#e6edf3">search_github(query) (193ms)</text>
+
+  <text x="155" y="227" font-family="monospace" font-size="9" fill="#cc9933" text-anchor="end">validate</text>
+  <rect x="160" y="214" width="300" height="18" rx="3" class="track"/>
+  <rect x="160" y="214" height="18" rx="3" class="s4"/>
+  <text x="188" y="227" font-family="monospace" font-size="8" fill="#e6edf3">guardrails (58ms)</text>
+
+  <!-- Summary panel -->
+  <rect x="520" y="130" width="220" height="110" rx="10" fill="#161b22" stroke="#cc9933" stroke-width="1.5"/>
+  <text x="630" y="152" font-family="monospace" font-size="10" fill="#cc9933" text-anchor="middle">run summary</text>
+  <text x="540" y="172" font-family="monospace" font-size="9" fill="#8b949e">total_latency</text>
+  <text x="725" y="172" font-family="monospace" font-size="9" fill="#e6edf3" text-anchor="end">471ms</text>
+  <text x="540" y="190" font-family="monospace" font-size="9" fill="#8b949e">tokens_used</text>
+  <text x="725" y="190" font-family="monospace" font-size="9" fill="#e6edf3" text-anchor="end">420</text>
+  <text x="540" y="208" font-family="monospace" font-size="9" fill="#8b949e">estimated_cost</text>
+  <text x="725" y="208" font-family="monospace" font-size="9" fill="#e6edf3" text-anchor="end">$0.0063</text>
+  <text x="540" y="226" font-family="monospace" font-size="9" fill="#8b949e">spans</text>
+  <text x="725" y="226" font-family="monospace" font-size="9" fill="#3fb950" text-anchor="end">4 ✓</text>
+</svg>
