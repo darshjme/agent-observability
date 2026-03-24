@@ -1,258 +1,227 @@
-"""TraceExporter — export traces to JSON file or stdout."""
+"""Log exporter module for agent observability data.
+
+Supports exporting spans and run data to JSONL files,
+stdout (pretty-printed), or Python dicts for custom sinks.
+"""
 
 from __future__ import annotations
 
+import io
 import json
 import sys
-from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Dict, IO, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
-from .tracer import Trace
-
-
-class BaseExporter(ABC):
-    """Abstract base class for trace exporters.
-
-    Subclass this to add support for additional backends such as
-    OpenTelemetry, Jaeger, or a custom HTTP collector.
-    """
-
-    @abstractmethod
-    def export(self, traces: List[Trace]) -> None:
-        """Export a list of traces to the target backend.
-
-        Args:
-            traces: List of :class:`~agent_observability.tracer.Trace` objects to export.
-        """
-
-    @abstractmethod
-    def export_one(self, trace: Trace) -> None:
-        """Export a single trace to the target backend.
-
-        Args:
-            trace: A single :class:`~agent_observability.tracer.Trace` to export.
-        """
+from agent_observability.middleware import RunContext
 
 
-class StdoutExporter(BaseExporter):
-    """Exports traces as newline-delimited JSON to stdout (or any stream).
-
-    Each trace is serialized as a single-line JSON object.  Useful for
-    local development, log aggregation pipelines, or CI debugging.
+def _default_serializer(obj: Any) -> Any:
+    """JSON serialization fallback for non-standard types.
 
     Args:
-        stream: Output stream; defaults to ``sys.stdout``.
-        pretty: When True, emit indented JSON (multi-line per trace).
+        obj: Object that failed standard JSON serialization.
+
+    Returns:
+        A JSON-serializable representation.
+
+    Raises:
+        TypeError: If the object cannot be serialized.
+    """
+    if hasattr(obj, "to_dict"):
+        return obj.to_dict()
+    if hasattr(obj, "__dict__"):
+        return obj.__dict__
+    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
+
+
+class LogExporter:
+    """Exports agent run data to various output formats.
+
+    Supports three export destinations:
+    - JSONL file (one JSON object per line)
+    - stdout (pretty-printed JSON)
+    - Python dict (for custom downstream sinks)
 
     Example:
-        >>> exporter = StdoutExporter()
-        >>> exporter.export_one(trace)
+        >>> exporter = LogExporter()
+        >>> mw = ObservabilityMiddleware(model_id="gpt-4o")
+        >>> with mw.trace_run() as run:
+        ...     run.record_tokens(100, 50)
+        >>> exporter.export_to_stdout(mw.runs[-1])
     """
 
-    def __init__(self, stream: Optional[IO[str]] = None, pretty: bool = False) -> None:
-        """Initialize the StdoutExporter.
+    def __init__(self, indent: int = 2) -> None:
+        """Initialize LogExporter.
 
         Args:
-            stream: Output stream; defaults to sys.stdout.
-            pretty: If True, emit indented JSON.
+            indent: JSON indentation level for pretty output. Default 2.
         """
-        self._stream: IO[str] = stream if stream is not None else sys.stdout
-        self._pretty = pretty
+        self.indent = indent
 
-    def export(self, traces: List[Trace]) -> None:
-        """Export multiple traces.
+    # -------------------------------------------------------------------------
+    # Core serialization
+    # -------------------------------------------------------------------------
+
+    def to_dict(self, run: RunContext) -> Dict[str, Any]:
+        """Convert a RunContext to a plain Python dict.
 
         Args:
-            traces: List of traces to export.
-        """
-        for trace in traces:
-            self.export_one(trace)
-
-    def export_one(self, trace: Trace) -> None:
-        """Export a single trace to the configured stream.
-
-        Args:
-            trace: Trace to serialize and write.
-        """
-        data = trace.to_dict()
-        if self._pretty:
-            self._stream.write(json.dumps(data, indent=2) + "\n")
-        else:
-            self._stream.write(json.dumps(data) + "\n")
-        self._stream.flush()
-
-
-class JSONFileExporter(BaseExporter):
-    """Exports traces to a JSON file on disk.
-
-    Supports two write modes:
-
-    * ``append=True`` (default): each export appends records to an
-      existing file as newline-delimited JSON (JSONL format).
-    * ``append=False``: each export **overwrites** the file with a JSON
-      array containing all provided traces.
-
-    Args:
-        path: Destination file path (created if it doesn't exist).
-        append: Whether to append to an existing file (JSONL) or overwrite.
-        pretty: When True and append=False, emit indented JSON.
-
-    Example:
-        >>> exporter = JSONFileExporter("/tmp/traces.jsonl")
-        >>> exporter.export(tracer.traces)
-    """
-
-    def __init__(
-        self,
-        path: Union[str, Path],
-        append: bool = True,
-        pretty: bool = False,
-    ) -> None:
-        """Initialize the JSONFileExporter.
-
-        Args:
-            path: File path to write traces to.
-            append: If True, append JSONL records; otherwise overwrite.
-            pretty: If True and not appending, use indented JSON.
-        """
-        self._path = Path(path)
-        self._append = append
-        self._pretty = pretty
-        self._path.parent.mkdir(parents=True, exist_ok=True)
-
-    @property
-    def path(self) -> Path:
-        """The output file path."""
-        return self._path
-
-    def export(self, traces: List[Trace]) -> None:
-        """Export multiple traces to the configured file.
-
-        Args:
-            traces: List of traces to serialize and write.
-        """
-        if self._append:
-            mode = "a"
-            with open(self._path, mode, encoding="utf-8") as fh:
-                for trace in traces:
-                    fh.write(json.dumps(trace.to_dict()) + "\n")
-        else:
-            data: List[Dict[str, Any]] = [t.to_dict() for t in traces]
-            indent = 2 if self._pretty else None
-            with open(self._path, "w", encoding="utf-8") as fh:
-                json.dump(data, fh, indent=indent)
-                fh.write("\n")
-
-    def export_one(self, trace: Trace) -> None:
-        """Export a single trace to the configured file.
-
-        Args:
-            trace: Trace to serialize and write.
-        """
-        self.export([trace])
-
-    def read_all(self) -> List[Dict[str, Any]]:
-        """Read and deserialize all traces from the file.
+            run: RunContext instance from a completed run.
 
         Returns:
-            List of trace dictionaries.  Returns an empty list if the
-            file does not exist.
+            Dict representation suitable for custom sinks or further
+            processing. Nested spans are included under 'spans' key.
+        """
+        return run.to_dict()
+
+    def to_json(self, run: RunContext, pretty: bool = False) -> str:
+        """Serialize a RunContext to a JSON string.
+
+        Args:
+            run: RunContext to serialize.
+            pretty: If True, indent with self.indent spaces.
+
+        Returns:
+            JSON string.
+        """
+        indent = self.indent if pretty else None
+        return json.dumps(
+            run.to_dict(),
+            default=_default_serializer,
+            indent=indent,
+        )
+
+    # -------------------------------------------------------------------------
+    # Export targets
+    # -------------------------------------------------------------------------
+
+    def export_to_jsonl(
+        self,
+        runs: Union[RunContext, List[RunContext]],
+        path: Union[str, Path],
+        append: bool = True,
+    ) -> int:
+        """Export one or more runs to a JSONL file.
+
+        Each run is serialized as one JSON line. File is created
+        if it does not exist.
+
+        Args:
+            runs: Single RunContext or list of RunContexts to export.
+            path: File path to write to (str or Path).
+            append: If True, append to existing file. If False, overwrite.
+
+        Returns:
+            Number of records written.
+        """
+        if isinstance(runs, RunContext):
+            runs = [runs]
+
+        mode = "a" if append else "w"
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        count = 0
+        with open(path, mode, encoding="utf-8") as f:
+            for run in runs:
+                line = json.dumps(run.to_dict(), default=_default_serializer)
+                f.write(line + "\n")
+                count += 1
+        return count
+
+    def export_to_stdout(
+        self,
+        runs: Union[RunContext, List[RunContext]],
+        stream: Optional[io.TextIOBase] = None,
+    ) -> None:
+        """Export one or more runs to stdout (or given stream) as pretty JSON.
+
+        Args:
+            runs: Single RunContext or list to export.
+            stream: Output stream (defaults to sys.stdout).
+        """
+        if isinstance(runs, RunContext):
+            runs = [runs]
+
+        out = stream or sys.stdout
+        for run in runs:
+            out.write(
+                json.dumps(
+                    run.to_dict(),
+                    default=_default_serializer,
+                    indent=self.indent,
+                )
+            )
+            out.write("\n")
+
+    def export_to_dict(
+        self,
+        runs: Union[RunContext, List[RunContext]],
+    ) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
+        """Export runs as Python dict(s) for custom downstream sinks.
+
+        Args:
+            runs: Single RunContext or list to export.
+
+        Returns:
+            Single dict if input was a single RunContext,
+            list of dicts if input was a list.
+        """
+        if isinstance(runs, RunContext):
+            return runs.to_dict()
+        return [run.to_dict() for run in runs]
+
+    # -------------------------------------------------------------------------
+    # Batch helpers
+    # -------------------------------------------------------------------------
+
+    def load_jsonl(self, path: Union[str, Path]) -> List[Dict[str, Any]]:
+        """Load previously exported JSONL file back into dicts.
+
+        Args:
+            path: Path to JSONL file.
+
+        Returns:
+            List of run dicts.
 
         Raises:
-            ValueError: If the file is neither valid JSONL nor a JSON array.
+            FileNotFoundError: If file does not exist.
         """
-        if not self._path.exists():
-            return []
-        content = self._path.read_text(encoding="utf-8").strip()
-        if not content:
-            return []
-        # Try JSONL first
-        records: List[Dict[str, Any]] = []
-        errors: List[str] = []
-        for line in content.splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                records.append(json.loads(line))
-            except json.JSONDecodeError as exc:
-                errors.append(str(exc))
-        if not errors:
-            # Flatten any items that are lists (non-append mode writes a compact JSON array
-            # which the JSONL parser reads as a single item containing a list).
-            result: List[Dict[str, Any]] = []
-            for item in records:
-                if isinstance(item, list):
-                    result.extend(item)
-                else:
-                    result.append(item)
-            return result
-        # Fall back to JSON array
-        try:
-            return json.loads(content)
-        except json.JSONDecodeError:
-            pass
-        raise ValueError(f"File {self._path} is not valid JSONL or JSON array. Errors: {errors}")
+        path = Path(path)
+        records = []
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    records.append(json.loads(line))
+        return records
 
+    def export_spans_only(
+        self,
+        run: RunContext,
+        path: Union[str, Path],
+        append: bool = True,
+    ) -> int:
+        """Export only the spans from a run to a JSONL file.
 
-class TraceExporter:
-    """High-level facade that delegates to one or more :class:`BaseExporter` backends.
-
-    Supports fan-out: attach multiple exporters and every trace is sent to
-    all of them.  The default configuration writes to stdout.
-
-    Args:
-        exporters: Initial list of exporters.  If empty, a
-            :class:`StdoutExporter` is added automatically.
-
-    Example:
-        >>> exporter = TraceExporter([
-        ...     StdoutExporter(),
-        ...     JSONFileExporter("/var/log/agent/traces.jsonl"),
-        ... ])
-        >>> exporter.export_one(trace)
-    """
-
-    def __init__(self, exporters: Optional[List[BaseExporter]] = None) -> None:
-        """Initialize TraceExporter with the given backends.
+        Each span is written as a separate JSON line (flattened, no nesting).
 
         Args:
-            exporters: List of BaseExporter instances.  Defaults to a
-                single StdoutExporter.
+            run: RunContext whose spans to export.
+            path: Output file path.
+            append: Whether to append or overwrite.
+
+        Returns:
+            Number of span records written.
         """
-        if exporters is None:
-            self._exporters: List[BaseExporter] = [StdoutExporter()]
-        else:
-            self._exporters = list(exporters)
+        flat_spans = run.tracer.all_spans_flat()
+        mode = "a" if append else "w"
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
 
-    def add_exporter(self, exporter: BaseExporter) -> None:
-        """Attach an additional exporter backend.
-
-        Args:
-            exporter: The exporter to add.
-        """
-        self._exporters.append(exporter)
-
-    def export(self, traces: List[Trace]) -> None:
-        """Export a list of traces to all configured backends.
-
-        Args:
-            traces: List of traces to export.
-        """
-        for exporter in self._exporters:
-            exporter.export(traces)
-
-    def export_one(self, trace: Trace) -> None:
-        """Export a single trace to all configured backends.
-
-        Args:
-            trace: Trace to export.
-        """
-        for exporter in self._exporters:
-            exporter.export_one(trace)
-
-    @property
-    def exporters(self) -> List[BaseExporter]:
-        """Return the list of attached exporters."""
-        return list(self._exporters)
+        count = 0
+        with open(path, mode, encoding="utf-8") as f:
+            for span in flat_spans:
+                f.write(json.dumps(span, default=_default_serializer) + "\n")
+                count += 1
+        return count

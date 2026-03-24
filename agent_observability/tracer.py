@@ -1,313 +1,242 @@
-"""AgentTracer — trace multi-step agent runs with spans."""
+"""Span tracing module for nested tool call observability.
+
+Provides SpanTracer for creating and managing hierarchical spans
+representing tool calls within an agent run.
+"""
 
 from __future__ import annotations
 
 import time
 import uuid
-from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 
-@dataclass
 class Span:
-    """Represents a single traced operation within an agent run.
+    """Represents a single traced unit of work (e.g., a tool call).
+
+    Spans can be nested: a parent span may contain child spans.
+    Each span tracks timing, metadata, and outcome.
 
     Attributes:
         span_id: Unique identifier for this span.
-        name: Human-readable name for the operation.
-        start_time: Unix timestamp when the span started.
-        end_time: Unix timestamp when the span ended (None if still running).
-        duration_ms: Duration in milliseconds (None if still running).
-        tokens_in: Number of input tokens consumed.
-        tokens_out: Number of output tokens generated.
+        name: Human-readable name (e.g., tool name).
+        parent_id: ID of the parent span, or None if root.
+        start_time: Unix timestamp when span was started.
+        end_time: Unix timestamp when span was ended (None if still open).
         metadata: Arbitrary key-value metadata attached to this span.
-        parent_span_id: ID of the parent span, if any.
-        status: Span status: "running", "ok", or "error".
-        error: Error message if status is "error".
+        error: Error message if span ended with failure, else None.
+        children: List of child Span objects.
+
+    Example:
+        >>> span = Span(name="web_search", parent_id=None)
+        >>> span.end(metadata={"results": 5})
+        >>> d = span.to_dict()
+        >>> assert d["name"] == "web_search"
     """
 
-    span_id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    name: str = ""
-    start_time: float = field(default_factory=time.time)
-    end_time: Optional[float] = None
-    duration_ms: Optional[float] = None
-    tokens_in: int = 0
-    tokens_out: int = 0
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    parent_span_id: Optional[str] = None
-    status: str = "running"
-    error: Optional[str] = None
-
-    def finish(self, tokens_in: int = 0, tokens_out: int = 0, error: Optional[str] = None) -> "Span":
-        """Finalize the span, recording end time and duration.
+    def __init__(
+        self,
+        name: str,
+        parent_id: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Initialize a new Span.
 
         Args:
-            tokens_in: Input tokens consumed during this span.
-            tokens_out: Output tokens generated during this span.
-            error: Optional error message; sets status to "error" if provided.
+            name: Descriptive name for this span.
+            parent_id: ID of the parent span, or None for root spans.
+            metadata: Optional initial metadata dict.
+        """
+        self.span_id: str = str(uuid.uuid4())
+        self.name: str = name
+        self.parent_id: Optional[str] = parent_id
+        self.start_time: float = time.time()
+        self.end_time: Optional[float] = None
+        self.metadata: Dict[str, Any] = metadata or {}
+        self.error: Optional[str] = None
+        self.children: List["Span"] = []
+
+    @property
+    def duration_ms(self) -> Optional[float]:
+        """Return span duration in milliseconds, or None if not yet ended.
+
+        Returns:
+            Duration in milliseconds as a float, or None.
+        """
+        if self.end_time is None:
+            return None
+        return (self.end_time - self.start_time) * 1000.0
+
+    def end(
+        self,
+        metadata: Optional[Dict[str, Any]] = None,
+        error: Optional[str] = None,
+    ) -> "Span":
+        """Close this span, recording end time and optional outcome.
+
+        Args:
+            metadata: Additional metadata to merge into this span.
+            error: Error message if this span represents a failure.
 
         Returns:
             Self, for method chaining.
         """
         self.end_time = time.time()
-        self.duration_ms = (self.end_time - self.start_time) * 1000
-        self.tokens_in = tokens_in
-        self.tokens_out = tokens_out
+        if metadata:
+            self.metadata.update(metadata)
         if error:
-            self.status = "error"
             self.error = error
-        else:
-            self.status = "ok"
         return self
 
     def to_dict(self) -> Dict[str, Any]:
-        """Serialize the span to a plain dictionary.
+        """Serialize this span and all children to a nested dict.
 
         Returns:
-            Dictionary representation of this span.
+            Dict with keys: span_id, name, parent_id, start_time,
+            end_time, duration_ms, metadata, error, children.
         """
         return {
             "span_id": self.span_id,
             "name": self.name,
+            "parent_id": self.parent_id,
             "start_time": self.start_time,
             "end_time": self.end_time,
             "duration_ms": self.duration_ms,
-            "tokens_in": self.tokens_in,
-            "tokens_out": self.tokens_out,
             "metadata": self.metadata,
-            "parent_span_id": self.parent_span_id,
-            "status": self.status,
             "error": self.error,
+            "children": [child.to_dict() for child in self.children],
         }
 
 
-@dataclass
-class Trace:
-    """Represents a complete agent run composed of one or more spans.
+class SpanTracer:
+    """Manages a tree of spans for a single agent run.
 
-    Attributes:
-        trace_id: Unique identifier for this trace.
-        name: Human-readable name for the agent run.
-        spans: Ordered list of spans collected during the run.
-        start_time: Unix timestamp when the trace was created.
-        end_time: Unix timestamp when the trace was finished.
-        metadata: Arbitrary key-value metadata for the entire trace.
-    """
-
-    trace_id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    name: str = ""
-    spans: List[Span] = field(default_factory=list)
-    start_time: float = field(default_factory=time.time)
-    end_time: Optional[float] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
-
-    @property
-    def total_tokens_in(self) -> int:
-        """Total input tokens across all spans."""
-        return sum(s.tokens_in for s in self.spans)
-
-    @property
-    def total_tokens_out(self) -> int:
-        """Total output tokens across all spans."""
-        return sum(s.tokens_out for s in self.spans)
-
-    @property
-    def duration_ms(self) -> Optional[float]:
-        """Total trace duration in milliseconds, or None if not finished."""
-        if self.end_time is None:
-            return None
-        return (self.end_time - self.start_time) * 1000
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Serialize the trace to a plain dictionary.
-
-        Returns:
-            Dictionary representation of this trace.
-        """
-        return {
-            "trace_id": self.trace_id,
-            "name": self.name,
-            "spans": [s.to_dict() for s in self.spans],
-            "start_time": self.start_time,
-            "end_time": self.end_time,
-            "duration_ms": self.duration_ms,
-            "total_tokens_in": self.total_tokens_in,
-            "total_tokens_out": self.total_tokens_out,
-            "metadata": self.metadata,
-        }
-
-
-class AgentTracer:
-    """Traces multi-step agent runs by collecting spans.
+    SpanTracer maintains a stack of currently-open spans and
+    a flat registry of all spans for efficient lookup.
 
     Example:
-        >>> tracer = AgentTracer()
-        >>> with tracer.start_trace("my-agent") as trace:
-        ...     with tracer.start_span("llm-call") as span:
-        ...         span.finish(tokens_in=100, tokens_out=50)
+        >>> tracer = SpanTracer()
+        >>> root_id = tracer.start_span("run_agent")
+        >>> child_id = tracer.start_span("call_tool", parent_id=root_id)
+        >>> tracer.end_span(child_id)
+        >>> tracer.end_span(root_id)
+        >>> spans = tracer.to_dict()
+        >>> assert len(spans) == 1  # root with 1 child
     """
 
     def __init__(self) -> None:
-        """Initialize the tracer with an empty trace list."""
-        self._traces: List[Trace] = []
-        self._active_trace: Optional[Trace] = None
-
-    # ------------------------------------------------------------------
-    # Trace lifecycle
-    # ------------------------------------------------------------------
-
-    def new_trace(self, name: str, metadata: Optional[Dict[str, Any]] = None) -> Trace:
-        """Create and register a new trace (not a context manager).
-
-        Args:
-            name: Human-readable name for the agent run.
-            metadata: Optional metadata to attach to the trace.
-
-        Returns:
-            The newly created Trace.
-        """
-        trace = Trace(name=name, metadata=metadata or {})
-        self._traces.append(trace)
-        self._active_trace = trace
-        return trace
-
-    def finish_trace(self, trace: Trace) -> Trace:
-        """Finalize a trace, recording its end time.
-
-        Args:
-            trace: The trace to finish.
-
-        Returns:
-            The finished trace.
-        """
-        trace.end_time = time.time()
-        if self._active_trace is trace:
-            self._active_trace = None
-        return trace
-
-    def start_trace(self, name: str, metadata: Optional[Dict[str, Any]] = None) -> "_TraceContext":
-        """Start a trace as a context manager.
-
-        Args:
-            name: Human-readable name for the agent run.
-            metadata: Optional metadata to attach to the trace.
-
-        Returns:
-            A context manager that yields the trace and auto-finishes it.
-        """
-        trace = self.new_trace(name, metadata)
-        return _TraceContext(self, trace)
-
-    # ------------------------------------------------------------------
-    # Span lifecycle
-    # ------------------------------------------------------------------
-
-    def new_span(
-        self,
-        name: str,
-        trace: Optional[Trace] = None,
-        parent_span: Optional[Span] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> Span:
-        """Create and attach a new span to a trace.
-
-        Args:
-            name: Human-readable name for the operation.
-            trace: The trace to attach to; uses the active trace if None.
-            parent_span: Optional parent span for nested operations.
-            metadata: Optional metadata to attach to the span.
-
-        Returns:
-            The newly created Span.
-
-        Raises:
-            RuntimeError: If no trace is active and none is provided.
-        """
-        target_trace = trace or self._active_trace
-        if target_trace is None:
-            raise RuntimeError("No active trace. Call new_trace() or start_trace() first.")
-        span = Span(
-            name=name,
-            parent_span_id=parent_span.span_id if parent_span else None,
-            metadata=metadata or {},
-        )
-        target_trace.spans.append(span)
-        return span
+        """Initialize an empty SpanTracer."""
+        self._spans: Dict[str, Span] = {}  # span_id -> Span
+        self._root_spans: List[Span] = []  # top-level spans (no parent)
+        self._open_stack: List[str] = []  # stack of open span_ids
 
     def start_span(
         self,
         name: str,
-        trace: Optional[Trace] = None,
-        parent_span: Optional[Span] = None,
+        parent_id: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
-    ) -> "_SpanContext":
-        """Start a span as a context manager.
+    ) -> str:
+        """Create and start a new span.
+
+        If parent_id is None and there are open spans, the current
+        top-of-stack span is used as parent automatically.
 
         Args:
-            name: Human-readable name for the operation.
-            trace: The trace to attach to; uses the active trace if None.
-            parent_span: Optional parent span for nested operations.
-            metadata: Optional metadata to attach to the span.
+            name: Name of the span.
+            parent_id: Explicit parent span ID, or None to auto-parent.
+            metadata: Optional initial metadata.
 
         Returns:
-            A context manager that yields the span.
+            The new span's span_id string.
         """
-        span = self.new_span(name, trace, parent_span, metadata)
-        return _SpanContext(span)
+        # Auto-parent to top of stack if no explicit parent given
+        effective_parent_id = parent_id
+        if effective_parent_id is None and self._open_stack:
+            effective_parent_id = self._open_stack[-1]
 
-    # ------------------------------------------------------------------
-    # Inspection
-    # ------------------------------------------------------------------
+        span = Span(name=name, parent_id=effective_parent_id, metadata=metadata)
+        self._spans[span.span_id] = span
 
-    @property
-    def traces(self) -> List[Trace]:
-        """Return all recorded traces."""
-        return list(self._traces)
+        if effective_parent_id is not None:
+            parent = self._spans.get(effective_parent_id)
+            if parent is not None:
+                parent.children.append(span)
+        else:
+            self._root_spans.append(span)
 
-    def get_trace(self, trace_id: str) -> Optional[Trace]:
-        """Look up a trace by its ID.
+        self._open_stack.append(span.span_id)
+        return span.span_id
+
+    def end_span(
+        self,
+        span_id: str,
+        metadata: Optional[Dict[str, Any]] = None,
+        error: Optional[str] = None,
+    ) -> Optional[Span]:
+        """End a span by ID.
 
         Args:
-            trace_id: The UUID string of the target trace.
+            span_id: ID of the span to close.
+            metadata: Additional metadata to attach on close.
+            error: Error message if span ended in failure.
 
         Returns:
-            The matching Trace, or None if not found.
+            The closed Span object, or None if span_id not found.
         """
-        for t in self._traces:
-            if t.trace_id == trace_id:
-                return t
-        return None
+        span = self._spans.get(span_id)
+        if span is None:
+            return None
 
-    def clear(self) -> None:
-        """Remove all recorded traces and reset active trace."""
-        self._traces.clear()
-        self._active_trace = None
+        span.end(metadata=metadata, error=error)
 
+        if span_id in self._open_stack:
+            self._open_stack.remove(span_id)
 
-class _TraceContext:
-    """Internal context manager for traces."""
+        return span
 
-    def __init__(self, tracer: AgentTracer, trace: Trace) -> None:
-        self._tracer = tracer
-        self._trace = trace
+    def get_span(self, span_id: str) -> Optional[Span]:
+        """Retrieve a span by ID.
 
-    def __enter__(self) -> Trace:
-        return self._trace
+        Args:
+            span_id: Span identifier.
 
-    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
-        self._tracer.finish_trace(self._trace)
+        Returns:
+            Span object or None.
+        """
+        return self._spans.get(span_id)
 
+    def current_span_id(self) -> Optional[str]:
+        """Return the ID of the currently-open top-of-stack span.
 
-class _SpanContext:
-    """Internal context manager for spans."""
+        Returns:
+            span_id string or None if stack is empty.
+        """
+        return self._open_stack[-1] if self._open_stack else None
 
-    def __init__(self, span: Span) -> None:
-        self._span = span
+    def all_spans_flat(self) -> List[Dict[str, Any]]:
+        """Return all spans as a flat list of dicts (no nesting).
 
-    def __enter__(self) -> Span:
-        return self._span
+        Returns:
+            List of span dicts with same keys as Span.to_dict()
+            but with children as a list of span_id strings only.
+        """
+        result = []
+        for span in self._spans.values():
+            d = span.to_dict()
+            d["children"] = [c.span_id for c in span.children]
+            result.append(d)
+        return result
 
-    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
-        if self._span.status == "running":
-            error_msg = str(exc_val) if exc_val else None
-            self._span.finish(error=error_msg)
+    def to_dict(self) -> List[Dict[str, Any]]:
+        """Return all root spans as a nested tree of dicts.
+
+        Returns:
+            List of root span dicts, each with nested children.
+        """
+        return [span.to_dict() for span in self._root_spans]
+
+    def reset(self) -> None:
+        """Clear all spans and reset state."""
+        self._spans.clear()
+        self._root_spans.clear()
+        self._open_stack.clear()

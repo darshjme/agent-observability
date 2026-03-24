@@ -5,13 +5,16 @@ build-backend = "setuptools.backends.legacy:build"
 [project]
 name = "agent-observability"
 version = "0.1.0"
-description = "Structured logging, tracing and metrics for LLM agent systems"
+description = "Production-grade LLM agent observability: span tracing, cost tracking, and log export."
 readme = "README.md"
+requires-python = ">=3.10"
 license = { text = "MIT" }
-authors = [{ name = "Darshankumar Joshi", email = "darshjme@gmail.com" }]
-keywords = ["llm", "agents", "observability", "tracing", "metrics", "logging"]
+authors = [
+    { name = "darshjme", email = "darshjme@gmail.com" }
+]
+keywords = ["llm", "agent", "observability", "tracing", "cost-tracking", "openai", "anthropic", "gemini"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
@@ -21,16 +24,13 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
-requires-python = ">=3.10"
-dependencies = []
+dependencies = []  # Zero external dependencies — stdlib only
 
 [project.optional-dependencies]
-dev = ["pytest>=7.4", "pytest-cov>=4.1"]
-
-[project.urls]
-Homepage = "https://github.com/darshjme/agent-observability"
-Repository = "https://github.com/darshjme/agent-observability"
-Issues = "https://github.com/darshjme/agent-observability/issues"
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+]
 
 [tool.setuptools.packages.find]
 where = ["."]
@@ -38,7 +38,7 @@ include = ["agent_observability*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-python_files = ["test_*.py"]
+addopts = "-v --tb=short"
 
 [tool.coverage.run]
 source = ["agent_observability"]
