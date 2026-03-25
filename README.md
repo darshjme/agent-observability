@@ -1,116 +1,103 @@
 <div align="center">
 
-<img src="assets/agent-observability-hero.png" alt="agent-observability — Vedic Arsenal by Darshankumar Joshi" width="100%" />
+<img src="assets/drashta-hero.png" alt="द्रष्टा — drashta by Darshankumar Joshi" width="100%" />
 
-# 🪷 agent-observability
+# 🔮 द्रष्टा
+## `drashta`
 
-<h3><em>द्रष्टा</em></h3>
+> *Samkhya / Yoga Sutras*
 
-> *Drashta — the witness consciousness that sees all*
+### The Witness — pure consciousness observing
 
-**Structured logging, tracing and metrics for LLM agent systems**
+**Observability toolkit for LLM agents. Metrics, traces, logs unified under one interface.**
 
 [![Python](https://img.shields.io/badge/Python-3.8%2B-blue?style=flat-square&logo=python)](https://python.org)
-[![Zero Dependencies](https://img.shields.io/badge/Dependencies-Zero-brightgreen?style=flat-square)](https://github.com/darshjme/agent-observability)
-[![Tests](https://img.shields.io/badge/Tests-Passing-success?style=flat-square)](https://github.com/darshjme/agent-observability/actions)
-[![License](https://img.shields.io/badge/License-MIT-pink?style=flat-square)](LICENSE)
+[![Zero Dependencies](https://img.shields.io/badge/Dependencies-Zero-brightgreen?style=flat-square)](https://github.com/darshjme/drashta)
 [![Vedic Arsenal](https://img.shields.io/badge/Vedic%20Arsenal-100%20libs-purple?style=flat-square)](https://github.com/darshjme/arsenal)
+[![License](https://img.shields.io/badge/License-MIT-purple?style=flat-square)](LICENSE)
 
-*Part of the [**Vedic Arsenal**](https://github.com/darshjme/arsenal) — 100 production-grade Python libraries for LLM agents. Zero dependencies. Battle-tested.*
+*Formerly `agent-observability` — Part of the [**Vedic Arsenal**](https://github.com/darshjme/arsenal): 100 production-grade Python libraries for LLM agents, each named from the Vedas, Puranas, and Mahakavyas.*
 
 </div>
 
 ---
 
-## Overview
+## The Vedic Principle
 
-`agent-observability` implements **structured logging, tracing and metrics for llm agent systems**
+The ancient *Drashta* principle from Samkhya / Yoga Sutras finds its modern expression in this library.
 
-Inspired by the Vedic principle of *द्रष्टा* (Drashta), this library brings the ancient wisdom of structured discipline to modern LLM agent engineering.
+Just as the Vedic sages understood that every phenomenon in the universe follows deep patterns — patterns of creation, maintenance, and dissolution — `drashta` applies this wisdom to LLM agent engineering.
 
-No external dependencies. Pure Python 3.8+. Drop it in anywhere.
+The concept of *द्रष्टा* (The Witness — pure consciousness observing) speaks directly to the technical problem this library solves. When the sages codified this principle in Samkhya / Yoga Sutras, they were describing not just a spiritual truth but a computational truth that would take humanity millennia to rediscover in silicon.
 
-## Installation
+This is not coincidence. The universe has one nature. The Vedas described it first.
 
-```bash
-pip install agent-observability
-```
-
-Or clone directly:
-```bash
-git clone https://github.com/darshjme/agent-observability.git
-cd agent-observability
-pip install -e .
-```
+---
 
 ## How It Works
 
 ```mermaid
 flowchart LR
-    A[Agent Action] --> B[agent-observability]
-    B --> C[Structured Log]
-    B --> D[Trace Span]
-    B --> E[Metric Counter]
-    C --> F[Log Store]
-    D --> G[Trace Backend]
-    E --> H[Metrics Dashboard]
-    style B fill:#ec4899,color:#fff
+    A[Input] --> B[drashta]
+    B --> C{Process}
+    C -- Success --> D[Output]
+    C -- Error --> E[Handle]
+    E --> B
+    style B fill:#6b21a8,color:#fff
+```
+
+---
+
+## Installation
+
+```bash
+pip install drashta
+```
+
+Or from source:
+```bash
+git clone https://github.com/darshjme/drashta.git
+cd drashta && pip install -e .
 ```
 
 ## Quick Start
 
 ```python
-from observability import *
+from drashta import *
 
-# Initialize
-# See examples/ for full usage patterns
+# See examples/ for full usage
 ```
 
-## Why `agent-observability`?
-
-Production LLM systems fail in predictable ways. `agent-observability` solves the **observability** failure mode with:
-
-- **Zero dependencies** — no version conflicts, no bloat
-- **Battle-tested patterns** — extracted from real production systems
-- **Type-safe** — full type hints, mypy-compatible
-- **Minimal surface area** — one job, done well
-- **Composable** — works with any LLM framework (LangChain, LlamaIndex, raw OpenAI, etc.)
+---
 
 ## The Vedic Arsenal
 
-`agent-observability` is part of **[darshjme/arsenal](https://github.com/darshjme/arsenal)** — a collection of 100 focused Python libraries for LLM agent infrastructure.
+`drashta` is one of 100 libraries in **[darshjme/arsenal](https://github.com/darshjme/arsenal)** — each named from sacred Indian literature:
 
-Each library solves exactly one problem. Together they form a complete stack.
+| Sanskrit Name | Source | Technical Function |
+|---|---|---|
+| `drashta` | Samkhya / Yoga Sutras | The Witness — pure consciousness observing |
 
-```
-pip install agent-observability  # this library
-# Browse all 100: https://github.com/darshjme/arsenal
-```
+Each library solves one problem. Zero external dependencies. Pure Python 3.8+.
+
+---
 
 ## Contributing
 
-Found a bug? Have an improvement?
-
 1. Fork the repo
-2. Create a feature branch (`git checkout -b fix/your-fix`)
-3. Add tests
+2. Create feature branch (`git checkout -b fix/your-fix`)  
+3. Add tests — zero dependencies only
 4. Open a PR
-
-All contributions welcome. Keep it zero-dependency.
-
-## License
-
-MIT — use freely, build freely.
 
 ---
 
 <div align="center">
 
-**Built with 🪷 by [Darshankumar Joshi](https://github.com/darshjme)** · [@thedarshanjoshi](https://twitter.com/thedarshanjoshi)
+**🔮 Built by [Darshankumar Joshi](https://github.com/darshjme)** · [@thedarshanjoshi](https://twitter.com/thedarshanjoshi)
 
 *"कर्मण्येवाधिकारस्ते मा फलेषु कदाचन"*
-*Your right is to action alone, never to the fruits thereof.*
+*Your right is to action alone, never to its fruits. — Bhagavad Gita 2.47*
 
-[Arsenal](https://github.com/darshjme/arsenal) · [GitHub](https://github.com/darshjme) · [Twitter](https://twitter.com/thedarshanjoshi)
+[Vedic Arsenal](https://github.com/darshjme/arsenal) · [GitHub](https://github.com/darshjme) · [Twitter](https://twitter.com/thedarshanjoshi)
 
 </div>
