@@ -1,10 +1,12 @@
 <div align="center">
 
-<img src="assets/agent-observability-hero.png" alt="agent-observability — Vedic Arsenal" width="100%" />
+<img src="assets/agent-observability-hero.png" alt="agent-observability — Vedic Arsenal by Darshankumar Joshi" width="100%" />
 
 # 🪷 agent-observability
 
-### *द्रष्टा* — Drashta — the witness consciousness that sees all
+<h3><em>द्रष्टा</em></h3>
+
+> *Drashta — the witness consciousness that sees all*
 
 **Structured logging, tracing and metrics for LLM agent systems**
 
@@ -39,6 +41,20 @@ Or clone directly:
 git clone https://github.com/darshjme/agent-observability.git
 cd agent-observability
 pip install -e .
+```
+
+## How It Works
+
+```mermaid
+flowchart LR
+    A[Agent Action] --> B[agent-observability]
+    B --> C[Structured Log]
+    B --> D[Trace Span]
+    B --> E[Metric Counter]
+    C --> F[Log Store]
+    D --> G[Trace Backend]
+    E --> H[Metrics Dashboard]
+    style B fill:#ec4899,color:#fff
 ```
 
 ## Quick Start
@@ -90,7 +106,7 @@ MIT — use freely, build freely.
 
 <div align="center">
 
-**Built with 🪷 by [Darshankumar Joshi](https://github.com/darshjme)**
+**Built with 🪷 by [Darshankumar Joshi](https://github.com/darshjme)** · [@thedarshanjoshi](https://twitter.com/thedarshanjoshi)
 
 *"कर्मण्येवाधिकारस्ते मा फलेषु कदाचन"*
 *Your right is to action alone, never to the fruits thereof.*
